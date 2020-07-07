@@ -1,4 +1,5 @@
 import { GraphQLServer } from 'graphql-yoga';
+import { v4 as uuidv4} from 'uuid';
 
 //dummy data
 const users = [
@@ -38,6 +39,21 @@ const posts = [
         published: false,
         author: '2'
     }
+];
+
+const comments = [
+    {
+        id: '1',
+        text: 'Yummy',
+        author: '1',
+        post: '10'
+    },
+    {
+        id: '2',
+        text: 'Sweet',
+        author: '1',
+        post: '11'
+    }
 ]
 
 //Type definitions
@@ -46,8 +62,11 @@ const typeDefs = `
     type Query {
         users(query: String): [User!]!
         posts(query: String): [Post!]!
-        me: User!
-        post: Post!
+        comments(query: String): [Comment!]!
+    }
+
+    type Mutation {
+        createUser(name: String!, email: String!, age: Int) : User!
     }
 
     type User {
@@ -56,6 +75,7 @@ const typeDefs = `
         email: String!
         age: Int
         posts: [Post!]!
+        comments: [Comment!]!
     }
 
     type Post {
@@ -64,7 +84,17 @@ const typeDefs = `
         body: String!
         published: Boolean!
         author: User!
+        comments: [Comment!]!
     }
+
+    type Comment {
+        id: ID!
+        text: String!
+        author: User!
+        post: Post!
+    }
+
+
 `
 
 //Resolvers
@@ -92,13 +122,35 @@ const resolvers = {
                 return isBodyMatch || isTitleMatch;
             });
         },
-        post() {
-            return {
-                id: '1223',
-                title: 'Panda Post',
-                body: 'Chubby Panda',
-                published: true
+        comments(parent, args,ctx,info){
+            if(!args.query){
+                return comments;
             }
+
+            return comments.filter((comment)=>{
+                return comment.text.toLowerCase().includes(args.query.toLowerCase());
+            });
+        }
+    },
+    Mutation: {
+        createUser(parent, args,ctx,info){
+            // console.log(args);
+            const emailTaken = users.some(user => user.email === args.email)
+
+            if(emailTaken){
+                throw new Error('Email is already taken');
+            }
+
+            const user = {
+                id: uuidv4(),
+                name: args.name,
+                email: args.email,
+                age: args.age
+            }
+
+            users.push(user);
+
+            return user;
         }
     },
     Post: {
@@ -106,6 +158,10 @@ const resolvers = {
             return users.find((user) => {
                 return user.id === parent.author
             })
+        },
+
+        comments(parent,args,ctx,info){
+            return comments.filter(comment => comment.post === parent.id);
         }
     },
     User: {
@@ -113,6 +169,19 @@ const resolvers = {
             return posts.filter(post => {
                 return post.author === parent.id
             });
+        },
+
+        comments(parent,args,ctx,info){
+            return comments.filter(comment => comment.author === parent.id)
+        }
+    },
+    Comment: {
+        author(parent, args,ctx,info){
+            return users.find(user => user.id === parent.author);
+        },
+
+        post(parent, args,ctx,info){
+            return posts.find(post => post.id === parent.post);
         }
     }
 }
